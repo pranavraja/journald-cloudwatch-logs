@@ -4,22 +4,20 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
-	"time"
 
 	"github.com/coreos/go-systemd/sdjournal"
 )
 
 func UnmarshalRecord(journal *sdjournal.Journal, to *Record) error {
-	err := unmarshalRecord(journal, reflect.ValueOf(to).Elem())
-	if err == nil {
-		// FIXME: Should use the realtime from the log record,
-		// but for some reason journal.GetRealtimeUsec always fails.
-		to.TimeNsec = time.Now().UnixNano()
+	entry, err := journal.GetEntry()
+	if err != nil {
+		return err
 	}
-	return err
+	to.TimeUsec = int64(entry.RealtimeTimestamp)
+	return unmarshalRecord(entry, reflect.ValueOf(to).Elem())
 }
 
-func unmarshalRecord(journal *sdjournal.Journal, toVal reflect.Value) error {
+func unmarshalRecord(entry *sdjournal.JournalEntry, toVal reflect.Value) error {
 	toType := toVal.Type()
 
 	numField := toVal.NumField()
@@ -36,7 +34,7 @@ func unmarshalRecord(journal *sdjournal.Journal, toVal reflect.Value) error {
 
 		if fieldTypeKind == reflect.Struct {
 			// Recursively unmarshal from the same journal
-			unmarshalRecord(journal, fieldVal)
+			unmarshalRecord(entry, fieldVal)
 		}
 
 		jdKey := fieldTag.Get("journald")
@@ -44,15 +42,11 @@ func unmarshalRecord(journal *sdjournal.Journal, toVal reflect.Value) error {
 			continue
 		}
 
-		value, err := journal.GetData(jdKey)
-		if err != nil || value == "" {
+		value, ok := entry.Fields[jdKey]
+		if !ok {
 			fieldVal.Set(reflect.Zero(fieldType))
 			continue
 		}
-
-		// The value is returned with the key and an equals sign on
-		// the front, so we'll trim those off.
-		value = value[len(jdKey)+1:]
 
 		switch fieldTypeKind {
 		case reflect.Int:
