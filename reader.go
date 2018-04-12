@@ -76,56 +76,32 @@ func ReadRecords(instanceId string, journal *sdjournal.Journal, c chan<- Record,
 // If records don't show up fast enough, smaller batches will be returned
 // each second as long as at least one item is in the buffer.
 func BatchRecords(records <-chan Record, batches chan<- []Record, batchSize int) {
-	// We have two buffers here so that we can fill one while the
-	// caller is working on the other. The caller is therefore
-	// guaranteed that the returned slice will remain valid until
-	// the next read of the batches channel.
-	var bufs [2][]Record
-	bufs[0] = make([]Record, batchSize)
-	bufs[1] = make([]Record, batchSize)
-	var record Record
-	var more bool
-	currentBuf := 0
-	next := 0
-	timer := time.NewTimer(time.Second)
-	timer.Stop()
-
+	var (
+		batch   []Record
+		timeout <-chan time.Time
+	)
+	flush := func() {
+		if len(batch) > 0 {
+			batches <- batch
+		}
+		batch = make([]Record, 0, batchSize)
+		timeout = time.After(time.Second)
+	}
+	flush()
 	for {
 		select {
-		case record, more = <-records:
-			if !more {
+		case record, ok := <-records:
+			if !ok {
 				close(batches)
 				return
 			}
-			bufs[currentBuf][next] = record
-			next++
-			if next < batchSize {
-				// If we've just added our first record then we'll
-				// start the batch timer.
-				if next == 1 {
-					timer.Reset(time.Second)
-				}
-				// Not enough records yet, so wait again.
-				continue
+			batch = append(batch, record)
+			if len(batch) >= batchSize {
+				flush()
 			}
-			break
-		case <-timer.C:
-			break
+		case <-timeout:
+			flush()
 		}
-
-		timer.Stop()
-		if next == 0 {
-			continue
-		}
-
-		// If we manage to fall out here then either the buffer is fuull
-		// or the batch timer expired. Either way it's time for us to
-		// emit a batch.
-		batches <- bufs[currentBuf][0:next]
-
-		// Switch buffers before we start building the next batch.
-		currentBuf = (currentBuf + 1) % 2
-		next = 0
 	}
 }
 
