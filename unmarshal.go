@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/coreos/go-systemd/sdjournal"
 )
@@ -14,7 +16,30 @@ func UnmarshalRecord(journal *sdjournal.Journal, to *Record) error {
 		return err
 	}
 	to.TimeUsec = int64(entry.RealtimeTimestamp)
-	return unmarshalRecord(entry, reflect.ValueOf(to).Elem())
+	if err := unmarshalRecord(entry, reflect.ValueOf(to).Elem()); err != nil {
+		return err
+	}
+	i := 0
+	for strings.HasPrefix(to.Message, `{"`) && !strings.HasSuffix(to.Message, `}`) {
+		// the journal splits up messages of length >2K. Let's try and join them back again
+		// ..for up to 10 records
+		seeked, err := journal.Next()
+		if err != nil {
+			time.Sleep(2 * time.Second)
+			continue
+		}
+		if seeked == 0 {
+			journal.Wait(2 * time.Second)
+			continue
+		}
+		entry, err := journal.GetEntry()
+		to.Message += entry.Fields["MESSAGE"]
+		i++
+		if i > 10 {
+			break
+		}
+	}
+	return nil
 }
 
 func unmarshalRecord(entry *sdjournal.JournalEntry, toVal reflect.Value) error {
