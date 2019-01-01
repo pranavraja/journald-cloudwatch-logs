@@ -27,6 +27,7 @@ type Config struct {
 	Unit           string
 	JournalDir     string
 	BufferSize     int
+	RawMessage     bool
 }
 
 type fileConfig struct {
@@ -39,6 +40,7 @@ type fileConfig struct {
 	JournalDir    string `hcl:"journal_dir"`
 	Unit          string `hcl:"unit"`
 	BufferSize    int    `hcl:"buffer_size"`
+	RawMessage    bool   `hcl:"raw_message"`
 }
 
 func getLogLevel(priority string) (Priority, error) {
@@ -130,6 +132,7 @@ func LoadConfig(filename string) (*Config, error) {
 	config.StateFilename = fConfig.StateFilename
 	config.JournalDir = fConfig.JournalDir
 	config.Unit = fConfig.Unit
+	config.RawMessage = fConfig.RawMessage
 
 	if fConfig.BufferSize != 0 {
 		config.BufferSize = fConfig.BufferSize

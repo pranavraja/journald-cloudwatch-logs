@@ -73,6 +73,7 @@ func run(configFilename string) error {
 		awsSession,
 		config.LogGroupName,
 		config.LogStreamName,
+		config.RawMessage,
 		nextSeq,
 	)
 	if err != nil {

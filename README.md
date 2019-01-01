@@ -102,6 +102,9 @@ The following configuration settings are supported:
   this setting provides a maximum batch size to use when clearing a large backlog of events, e.g.
   from system boot when the program starts for the first time.
 
+* `raw_message`: (Optional) Deliver the journal event directly to CloudWatch Logs without JSON
+  metadata. This is generally only useful if you're logging JSON to journald in the first place.
+
 Additionally values in the configuration file can contain variable expansions of the form
 ${instance.<key>} which will be exapnded from the AWS Instance Identity Document or ${env.<name>}
 which will be expanded from the operating system environment variables, if a key does not exist
