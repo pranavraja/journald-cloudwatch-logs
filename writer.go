@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -34,6 +35,11 @@ func (w *Writer) WriteBatch(records []Record) (string, error) {
 
 	events := make([]*cloudwatchlogs.InputLogEvent, 0, len(records))
 	for _, record := range records {
+		// Skip records older than 24 hours or CloudWatch Logs will spew
+		if record.TimeUsec < time.Now().Add(-24*time.Hour).UnixNano()/1000 {
+			continue
+		}
+
 		var payload string
 		if w.rawMessage {
 			payload = record.Message
